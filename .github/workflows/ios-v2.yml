@@ -1,0 +1,131 @@
+name: ios-v2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: xcodebuild list
+        run: |
+          xcodebuild -list -json
+      
+      - name: Set Default Scheme
+        run: |
+          scheme_list=$(xcodebuild -list -json | tr -d "\n")
+          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
+          echo $default | cat >default
+          echo Using default scheme: $default
+      
+      - name: Build
+        env:
+          scheme: ${{ 'default' }}
+          platform: ${{ 'iOS Simulator' }}
+        run: |
+          # Echo the values of scheme and platform
+          echo "Scheme: $scheme"
+          echo "Platform: $platform"
+
+          # xcrun xctrace returns via stderr, not the expected stdout (see https://developer.apple.com/forums/thread/663959)
+          device=$(xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//")
+          echo "Device: $device"
+
+          if [ "$scheme" = "default" ]; then
+            scheme=$(cat default)
+          fi
+      
+          if [ "$(ls -A | grep -i \\.xcworkspace\$)" ]; then
+            filetype_parameter="workspace"
+            file_to_build=$(ls -A | grep -i \\.xcworkspace\$)
+          else
+            filetype_parameter="project"
+            file_to_build=$(ls -A | grep -i \\.xcodeproj\$)
+          fi
+      
+          file_to_build=$(echo $file_to_build | awk '{$1=$1;print}')
+          echo "File to build: $file_to_build"
+      
+          xcodebuild build -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
+      
+      - name: Test
+        env:
+          scheme: ${{ 'default' }}
+          platform: ${{ 'iOS Simulator' }}
+        run: |
+          # Echo the values of scheme and platform
+          echo "Scheme: $scheme"
+          echo "Platform: $platform"
+
+          # xcrun xctrace returns via stderr, not the expected stdout (see https://developer.apple.com/forums/thread/663959)
+          device=$(xcrun xctrace list devices 2>&1 | grep -oE 'iPhone.*?[^\(]+' | head -1 | awk '{$1=$1;print}' | sed -e "s/ Simulator$//")
+      
+          if [ "$scheme" = "default" ]; then
+            scheme=$(cat default)
+          fi
+      
+          if [ "$(ls -A | grep -i \\.xcworkspace\$)" ]; then
+            filetype_parameter="workspace"
+            file_to_build=$(ls -A | grep -i \\.xcworkspace\$)
+          else
+            filetype_parameter="project"
+            file_to_build=$(ls -A | grep -i \\.xcodeproj\$)
+          fi
+      
+          file_to_build=$(echo $file_to_build | awk '{$1=$1;print}')
+      
+          xcodebuild test-without-building -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -destination "platform=$platform,name=$device"
+      
+      - name: Archive
+        env:
+          scheme: ${{ 'default' }}
+        run: |
+          # Echo the value of scheme
+          echo "Scheme: $scheme"
+
+          if [ "$scheme" = "default" ]; then
+            scheme=$(cat default)
+          fi
+
+          if [ "$(ls -A | grep -i \\.xcworkspace\$)" ]; then
+            filetype_parameter="workspace"
+            file_to_build=$(ls -A | grep -i \\.xcworkspace\$)
+          else
+            filetype_parameter="project"
+            file_to_build=$(ls -A | grep -i \\.xcodeproj\$)
+          fi
+
+          file_to_build=$(echo $file_to_build | awk '{$1=$1;print}')
+          echo "File to build: $file_to_build"
+
+          xcodebuild archive -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -archivePath ${{ github.workspace }}/build/"$scheme".xcarchive
+      
+      - name: Export .ipa
+        env:
+          scheme: ${{ 'default' }}
+        run: |
+          # Echo the value of scheme
+          echo "Scheme: $scheme"
+
+          if [ "$scheme" = "default" ]; then
+            scheme=$(cat default)
+          fi
+
+          archive_path="${{ github.workspace }}/build/$scheme.xcarchive"
+          export_path="${{ github.workspace }}/build"
+          export_options_plist="ExportOptions.plist"
+
+          echo "Archive Path: $archive_path"
+          echo "Export Path: $export_path"
+          echo "Export Options Plist: $export_options_plist"
+
+          xcodebuild -exportArchive -archivePath "$archive_path" -exportPath "$export_path" -exportOptionsPlist "$export_options_plist"
+      
+      - name: Upload .ipa Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-ipa
+          path: ${{ github.workspace }}/build/*.ipa
