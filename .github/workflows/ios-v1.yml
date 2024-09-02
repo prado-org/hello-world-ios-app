@@ -1,4 +1,4 @@
-name: iOS starter workflow
+name: ios-v1
 
 on:
   workflow_dispatch:
