@@ -106,6 +106,21 @@ jobs:
 
           xcodebuild archive -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -archivePath ${{ github.workspace }}/build/"$scheme".xcarchive
       
+      - name: Create Export Options Plist
+        run: |
+          /usr/libexec/PlistBuddy -c "Add :destination string export" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :manageAppVersionAndBuildNumber bool true" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:br.HelloWorld1 string 'HelloWorld1'" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:br.HelloWorld2 string 'HelloWorld2'" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :signingCertificate string 'Apple Distribution'" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string 123456" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :testFlightInternalTestingOnly bool true" exportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" exportOptions.plist
+
       - name: Export .ipa
         env:
           scheme: ${{ 'default' }}
@@ -119,7 +134,7 @@ jobs:
 
           archive_path="${{ github.workspace }}/build/$scheme.xcarchive"
           export_path="${{ github.workspace }}/build"
-          export_options_plist="ExportOptions.plist"
+          export_options_plist="exportOptions.plist"
 
           echo "Archive Path: $archive_path"
           echo "Export Path: $export_path"
